@@ -83,7 +83,34 @@ export interface IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
-  public dispose(): void {}
+  private readonly _toDispose = new Set<IDisposable>();
+  private _isDisposed = false;
+
+  public dispose(): void {
+    if (this._isDisposed) {
+      return;
+    }
+
+    markAsDisposed(this);
+    this._isDisposed = true;
+    this.clear();
+  }
+
+  /**
+   * Dispose of all registered disposables but do not mark this object as disposed.
+   */
+  public clear(): void {
+    if (this._toDispose.size === 0) {
+      return;
+    }
+
+    try {
+      dispose(this._toDispose);
+    } finally {
+      this._toDispose.clear();
+    }
+  }
+
   public add<T extends IDisposable>(o: T): T {
     return o;
   }

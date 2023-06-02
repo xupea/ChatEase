@@ -28,6 +28,7 @@ module.exports = {
     'no-plusplus': 'off',
     'class-methods-use-this': 'off',
     'no-empty-function': 'off',
+    'promise/catch-or-return': 'off',
   },
   parserOptions: {
     ecmaVersion: 2020,

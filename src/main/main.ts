@@ -8,18 +8,27 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
-import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import log from 'electron-log';
-import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
-import { setUnexpectedErrorHandler } from './lib/base/common/errors';
+
+import { app } from 'electron';
+import {
+  ExpectedError,
+  setUnexpectedErrorHandler,
+} from './lib/base/common/errors';
 import { InstantiationService } from './lib/platform/instantiation/common/instantiationService';
-import { IInstantiationService } from './lib/platform/instantiation/common/instantiation';
+import {
+  IInstantiationService,
+  ServicesAccessor,
+} from './lib/platform/instantiation/common/instantiation';
 import { ServiceCollection } from './lib/platform/instantiation/common/serviceCollection';
 import { IProductService } from './lib/platform/product/common/productService';
+import {
+  ILifecycleMainService,
+  LifecycleMainService,
+} from './lib/platform/lifecycle/electron-main/lifecycleMainService';
 import product from './lib/platform/product/common/product';
+import { ChatEaseApplication } from './app';
+import { SyncDescriptor } from './lib/platform/instantiation/common/descriptors';
+import { once } from './lib/base/common/functional';
 
 class ChatEaseMain {
   main() {
@@ -45,11 +54,19 @@ class ChatEaseMain {
       // Startup
       await instantiationService.invokeFunction(async (accessor) => {
         const productService = accessor.get(IProductService);
-        console.log(productService);
+        const lifecycleMainService = accessor.get(ILifecycleMainService);
+        // console.log(productService);
+        // console.log(lifecycleMainService);
+
+        once(lifecycleMainService.onWillShutdown)((evt) => {
+          console.log(evt);
+        });
       });
-    } catch (error) {
-      // await instantiationService.invokeFunction();
+    } catch (error: any) {
+      instantiationService.invokeFunction(this.quit, error);
     }
+
+    return instantiationService.createInstance(ChatEaseApplication).startup();
   }
 
   private createServices(): [IInstantiationService] {
@@ -60,11 +77,44 @@ class ChatEaseMain {
     const productService = { _serviceBrand: undefined, ...product };
     services.set(IProductService, productService);
 
+    // Lifecycle
+    services.set(
+      ILifecycleMainService,
+      new SyncDescriptor(LifecycleMainService, undefined, false)
+    );
+
     return [new InstantiationService(services, true)];
   }
 
   private async initServices(): Promise<void> {
     return Promise.resolve();
+  }
+
+  private quit(
+    accessor: ServicesAccessor,
+    reason?: ExpectedError | Error
+  ): void {
+    const lifecycleMainService = accessor.get(ILifecycleMainService);
+
+    let exitCode = 0;
+
+    if (reason) {
+      if ((reason as ExpectedError).isExpected) {
+        if (reason.message) {
+          // logService.trace(reason.message);
+        }
+      } else {
+        exitCode = 1; // signal error to the outside
+
+        if (reason.stack) {
+          // logService.error(reason.stack);
+        } else {
+          // logService.error(`Startup error: ${reason.toString()}`);
+        }
+      }
+    }
+
+    lifecycleMainService.kill(exitCode);
   }
 }
 

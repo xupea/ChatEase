@@ -10,3 +10,9 @@ export interface Event<T> {
     disposables?: IDisposable[] | DisposableStore
   ): IDisposable;
 }
+
+export class Emitter<T> {
+  constructor(options?: EmitterOptions) {
+
+  }
+}
